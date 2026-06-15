@@ -1063,6 +1063,17 @@ a,button,[role="button"],input,textarea,select{transition:color var(--transition
   </div>
 </div>
 
+<!-- ========== MODAL: VER RESPUESTAS ========== -->
+<div class="modal-overlay" id="modal-responses">
+  <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="mresponses-title">
+    <div class="modal-header">
+      <h3 id="mresponses-title">Respuestas del cliente</h3>
+      <button class="modal-close" onclick="closeModal('modal-responses')" aria-label="Cerrar">✕</button>
+    </div>
+    <div class="modal-body" id="responses-body" style="max-height:75vh;overflow-y:auto;"></div>
+  </div>
+</div>
+
 <script>
 // ============================================================ DATA
 let projects = [];
@@ -1742,14 +1753,57 @@ function previewProject(pid){
 function openResponses(pid){
   const p=projects.find(x=>x.id===pid);
   if(!p?.briefing){showToast('No hay respuestas guardadas para este proyecto');return;}
-  currentProjectId=pid;
-  isPreviewMode=true;
-  const body=document.getElementById('client-body');
-  const backBtn=document.getElementById('back-btn');
-  if(backBtn) backBtn.style.display='inline-flex';
-  body.textContent='Cargando respuestas...';
-  showView('view-client');
-  setTimeout(()=>loadClient(p,true),100);
+  const brief=p.briefing;
+  const modLabels={estrategia:'Consultoría estratégica de marca',identidad:'Identidad visual y Brand Book',campana:'Campaña de publicidad',digital:'Redes sociales y presencia digital',web:'Web',contenidos:'Producción de contenidos'};
+  const urgencyLabels=['Sin urgencia','1-3 meses','Próximas semanas','Sprint urgente'];
+
+  let html=`<div style="margin-bottom:var(--space-6);">
+    <div style="font-size:var(--text-xs);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:var(--space-3);">Respondido por</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3) var(--space-5);">
+      <div><span style="font-size:var(--text-xs);color:var(--color-text-muted);">Nombre</span><div style="font-weight:500;">${escapeHtml(brief.respondent?.name||p.contacto||'—')}</div></div>
+      <div><span style="font-size:var(--text-xs);color:var(--color-text-muted);">Email</span><div style="font-weight:500;">${escapeHtml(brief.respondent?.email||p.email||'—')}</div></div>
+      <div><span style="font-size:var(--text-xs);color:var(--color-text-muted);">Cargo</span><div style="font-weight:500;">${escapeHtml(brief.respondent?.role||p.cargo||'—')}</div></div>
+      <div><span style="font-size:var(--text-xs);color:var(--color-text-muted);">Web</span><div style="font-weight:500;">${escapeHtml(brief.respondent?.web||p.web||'—')}</div></div>
+    </div>
+  </div>`;
+
+  Object.entries(brief.modules||{}).forEach(([key,mod])=>{
+    if(!mod)return;
+    const urgencyIdx=typeof mod.urgencyLevel==='number'?mod.urgencyLevel:['sin urgencia','1-3 meses','próximas semanas','sprint urgente'].indexOf((mod.urgency||'').toLowerCase());
+    const urgencyLabel=urgencyIdx>=0&&urgencyIdx<4?urgencyLabels[urgencyIdx]:(mod.urgency||'—');
+    html+=`<div style="border-top:1px solid var(--color-sep);padding-top:var(--space-5);margin-bottom:var(--space-5);">
+      <div style="font-size:var(--text-xs);color:var(--color-high-lima,#DBFB54);text-transform:uppercase;letter-spacing:.06em;margin-bottom:var(--space-4);">${escapeHtml(modLabels[key]||key)}</div>`;
+
+    (mod.answers||[]).forEach(ans=>{
+      if(!ans.label)return;
+      const val=Array.isArray(ans.value)?ans.value.join(', '):ans.value||'';
+      if(!val)return;
+      html+=`<div style="margin-bottom:var(--space-4);">
+        <div style="font-size:var(--text-xs);color:var(--color-text-muted);margin-bottom:2px;">${escapeHtml(ans.label)}</div>
+        <div style="font-size:var(--text-sm);line-height:1.5;">${escapeHtml(val)}</div>
+      </div>`;
+    });
+
+    if(mod.urgency||typeof mod.urgencyLevel==='number'){
+      html+=`<div style="margin-top:var(--space-3);padding:var(--space-3) var(--space-4);background:var(--color-box);border-radius:var(--radius-md);font-size:var(--text-xs);">
+        <span style="color:var(--color-text-muted);">Urgencia · </span><strong>${escapeHtml(urgencyLabel)}</strong>
+      </div>`;
+    }
+    if(mod.comments){
+      html+=`<div style="margin-top:var(--space-3);padding:var(--space-3) var(--space-4);background:var(--color-box);border-radius:var(--radius-md);font-size:var(--text-xs);">
+        <span style="color:var(--color-text-muted);">Comentarios · </span>${escapeHtml(mod.comments)}
+      </div>`;
+    }
+    html+=`</div>`;
+  });
+
+  if(brief.receivedAt){
+    html+=`<div style="font-size:var(--text-xs);color:var(--color-text-muted);text-align:right;margin-top:var(--space-3);">Recibido: ${new Date(brief.receivedAt).toLocaleDateString('es-ES',{day:'2-digit',month:'long',year:'numeric'})}</div>`;
+  }
+
+  document.getElementById('responses-body').innerHTML=html;
+  document.getElementById('mresponses-title').textContent=`Respuestas · ${escapeHtml(p.empresa)}`;
+  document.getElementById('modal-responses').classList.add('open');
 }
 
 // ============================================================ CLIENT
