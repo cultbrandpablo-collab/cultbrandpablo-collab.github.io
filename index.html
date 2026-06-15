@@ -1846,16 +1846,24 @@ function populateFormFromBriefing(project){
   Object.entries(brief.modules||{}).forEach(([modKey,modData])=>{
     if(!modData.answers||!Array.isArray(modData.answers))return;
 
-    // Llenar preguntas
+    // Crear mapa de labels a campos en el DOM
+    const labelToField={};
+    document.querySelectorAll(`[data-module="${modKey}"] .q-block:not(.is-hidden)`).forEach(block=>{
+      const label=block.querySelector('.q-label')?.textContent.trim();
+      const input=block.querySelector('.q-input,.q-textarea');
+      const group=block.querySelector('.choice-group');
+      const field=input||group;
+      if(label&&field)labelToField[label]=field;
+    });
+
+    // Llenar preguntas buscando por label
     modData.answers.forEach(ans=>{
-      if(!ans.id)return;
-      const fieldId=`q_${modKey}_${ans.id}`;
-      const field=document.getElementById(fieldId);
+      const field=labelToField[ans.label];
       if(!field)return;
 
       if(field.type==='text'||field.type==='date'||field.type==='email'||field.tagName==='TEXTAREA'){
         field.value=ans.value||'';
-      }else if(field.classList?.contains('choice-group')){
+      }else{
         // Es un choice group (radio o check)
         const vals=Array.isArray(ans.value)?ans.value:[ans.value];
         field.querySelectorAll('.choice-item').forEach(item=>{
@@ -1863,33 +1871,21 @@ function populateFormFromBriefing(project){
           item.setAttribute('aria-checked',String(shouldCheck));
           item.classList.toggle('checked',shouldCheck);
         });
-      }else{
-        // Buscar el choice-group padre
-        const group=field.closest('[data-type]');
-        if(group){
-          const vals=Array.isArray(ans.value)?ans.value:[ans.value];
-          group.querySelectorAll('.choice-item').forEach(item=>{
-            const shouldCheck=vals.includes(item.dataset.value);
-            item.setAttribute('aria-checked',String(shouldCheck));
-            item.classList.toggle('checked',shouldCheck);
-          });
-        }
       }
     });
 
-    // Llenar urgencia
+    // Llenar urgencia (si existe en el payload antiguo con número)
     if(modData.urgency){
-      const urgencyMap={flexible:0, normal:1, pronto:2, sprint:3};
-      const urgencyBtns=document.querySelectorAll(`.urgency-btn`);
-      urgencyBtns.forEach(btn=>{
-        if(!btn.onclick)return;
-        const match=btn.onclick.toString().match(/setUrgency\(.*?'(\w+)'/);
-        if(match&&match[1]===modKey){
-          const targetIdx=urgencyMap[modData.urgency]||0;
-          const btnIdx=Array.from(btn.parentElement.children).indexOf(btn);
-          btn.classList.toggle('active',btnIdx===targetIdx);
-        }
-      });
+      const urgencyText=modData.urgency.toLowerCase();
+      const urgencyMap={'sin urgencia':0, '1-3 meses':1, 'próximas semanas':2, 'sprint urgente':3, flexible:0, normal:1, pronto:2, sprint:3};
+      const targetIdx=urgencyMap[urgencyText]!==undefined?urgencyMap[urgencyText]:0;
+      const section=document.querySelector(`[data-module="${modKey}"]`);
+      if(section){
+        const urgencyBtns=section.querySelectorAll('.urgency-btn');
+        urgencyBtns.forEach((btn,idx)=>{
+          btn.classList.toggle('active',idx===targetIdx);
+        });
+      }
     }
 
     // Llenar comentarios
