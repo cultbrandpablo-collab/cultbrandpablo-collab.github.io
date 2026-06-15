@@ -1814,11 +1814,79 @@ function loadClient(project, isPreview=false){
   showView('view-client');
   syncConditionalQuestions();
   setupBriefExperience(project);
+
+  // Precarga de respuestas guardadas si existen
+  if(project.briefing){
+    populateFormFromBriefing(project);
+  }
+
   updateProgress();
 
   // Event delegation
   body.removeEventListener('click',handleChoiceClick);
   body.addEventListener('click',handleChoiceClick,{once:false});
+}
+
+function populateFormFromBriefing(project){
+  if(!project.briefing)return;
+  const brief=project.briefing;
+
+  // Llenar datos del respondente
+  const respName=document.getElementById('respondent-name');
+  const respEmail=document.getElementById('respondent-email');
+  const respRole=document.getElementById('respondent-role');
+  const respWeb=document.getElementById('respondent-web');
+
+  if(respName&&brief.respondent?.name)respName.value=brief.respondent.name;
+  if(respEmail&&brief.respondent?.email)respEmail.value=brief.respondent.email;
+  if(respRole&&brief.respondent?.role)respRole.value=brief.respondent.role;
+  if(respWeb&&brief.respondent?.web)respWeb.value=brief.respondent.web;
+
+  // Llenar respuestas por módulo
+  Object.entries(brief.modules||{}).forEach(([modKey,modData])=>{
+    if(!modData.answers)return;
+
+    // Llenar preguntas
+    modData.answers.forEach(ans=>{
+      const fieldId=`q_${modKey}_${ans.id}`;
+      const field=document.getElementById(fieldId);
+      if(!field)return;
+
+      if(field.classList.contains('q-input')||field.classList.contains('q-textarea')){
+        field.value=ans.value||'';
+      }else{
+        // Es un choice group
+        const group=field.closest('[data-type]');
+        if(!group)return;
+        const isRadio=group.dataset.type==='radio';
+        const vals=Array.isArray(ans.value)?ans.value:[ans.value];
+
+        group.querySelectorAll('.choice-item').forEach(item=>{
+          const shouldCheck=vals.includes(item.dataset.value);
+          item.setAttribute('aria-checked',shouldCheck);
+          item.classList.toggle('checked',shouldCheck);
+        });
+      }
+    });
+
+    // Llenar urgencia
+    if(modData.urgency){
+      const urgencyBtns=document.querySelectorAll(`button[onclick*="setUrgency"][onclick*="'${modKey}'"]`);
+      urgencyBtns.forEach(btn=>{
+        const isTarget=btn.textContent.toLowerCase().includes(
+          modData.urgency==='flexible'?'sin urgencia':
+          modData.urgency==='normal'?'1-3':
+          modData.urgency==='pronto'?'próximas':
+          'sprint'
+        );
+        btn.classList.toggle('active',isTarget);
+      });
+    }
+
+    // Llenar comentarios
+    const comField=document.getElementById(`com-${modKey}`);
+    if(comField&&modData.comments)comField.value=modData.comments;
+  });
 }
 
 function buildModule(mod,key,num){
